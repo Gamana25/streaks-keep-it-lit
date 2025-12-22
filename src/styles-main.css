@@ -1778,3 +1778,22 @@ input[type="checkbox"]:checked {
 .task-meta .duration {
   opacity: 0.9;
 }
+.task-meta .due-date {
+  color: #A6ADBA !important;
+}
+
+.task-meta .due-date.overdue {
+  color: #ff5252 !important;
+  font-weight: 600;
+}
+
+/* ===== OVERDUE DATE ONLY ===== */
+.task-meta .due-date.overdue {
+  color: #ef4444 !important; /* red */
+  font-weight: 600;
+}
+.matrix-task.done .due-date {
+  color: #6b7280;
+  text-decoration: line-through;
+}
+

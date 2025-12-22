@@ -17,12 +17,23 @@ function isOverdue(task) {
   return task.dueDate < today;
 }
 
+function isToday(task) {
+  if (!task.dueDate) return false;
+  const today = new Date().toISOString().split("T")[0];
+  return task.dueDate === today;
+}
+
+const todayStr = new Date().toISOString().split("T")[0];
+
 /* ================= MAIN ================= */
 
 function Todo() {
   const [tasks, setTasks] = useState([]);
+  const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState("all");
   const [showModal, setShowModal] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
+  const [error, setError] = useState("");
 
   const [newTask, setNewTask] = useState({
     title: "",
@@ -42,23 +53,56 @@ function Todo() {
     localStorage.setItem("tasks", JSON.stringify(data));
   };
 
+  /* ===== SEARCH + FILTER ===== */
+  const visibleTasks = tasks
+    .filter(t =>
+      t.title.toLowerCase().includes(search.toLowerCase())
+    )
+    .filter(t => {
+      if (filter === "today") return isToday(t);
+      if (filter === "overdue") return isOverdue(t);
+      return true;
+    });
+
+  /* ===== VALIDATION ===== */
+  const validateTask = (task) => {
+    if (!task.title.trim()) return "Task name is required";
+    if (!task.duration || Number(task.duration) <= 0)
+      return "Focus minutes must be greater than 0";
+    if (!task.dueDate) return "Due date is required";
+    if (task.dueDate < todayStr) return "Due date cannot be in the past";
+    return "";
+  };
+
   return (
     <div className="todo-page">
       <h1 className="todo-title">To Do List</h1>
 
       <div className="todo-actions">
-        <input className="todo-search" placeholder="Search tasks..." />
+        <input
+          className="todo-search"
+          placeholder="Search tasks..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
 
         <div className="todo-filters">
-          <button className="todo-filter active">All</button>
-          <button className="todo-filter">Today</button>
-          <button className="todo-filter">Overdue</button>
+          {["all", "today", "overdue"].map(f => (
+            <button
+              key={f}
+              className={`todo-filter ${filter === f ? "active" : ""}`}
+              onClick={() => setFilter(f)}
+            >
+              {f.charAt(0).toUpperCase() + f.slice(1)}
+            </button>
+          ))}
         </div>
 
         <button
           className="matrix-add-btn"
           onClick={() => {
             setEditingTask(null);
+            setError("");
             setShowModal(true);
           }}
         >
@@ -67,20 +111,20 @@ function Todo() {
       </div>
 
       <div className="matrix-grid">
-        {renderBox(1, "Urgent & Important", tasks, saveTasks, setEditingTask, setShowModal)}
-        {renderBox(2, "Not Urgent & Important", tasks, saveTasks, setEditingTask, setShowModal)}
-        {renderBox(3, "Urgent & Not Important", tasks, saveTasks, setEditingTask, setShowModal)}
-        {renderBox(4, "Not Urgent & Not Important", tasks, saveTasks, setEditingTask, setShowModal)}
+        {renderBox(1, "Urgent & Important", visibleTasks, saveTasks, setEditingTask, setShowModal)}
+        {renderBox(2, "Not Urgent & Important", visibleTasks, saveTasks, setEditingTask, setShowModal)}
+        {renderBox(3, "Urgent & Not Important", visibleTasks, saveTasks, setEditingTask, setShowModal)}
+        {renderBox(4, "Not Urgent & Not Important", visibleTasks, saveTasks, setEditingTask, setShowModal)}
       </div>
 
-      {/* ========== MODAL ========== */}
+      {/* ===== MODAL ===== */}
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <h2>{editingTask ? "Edit Task" : "New Task"}</h2>
 
             <div className="form-row">
-              <label>Task Name</label>
+              <label>Task Name *</label>
               <input
                 type="text"
                 value={editingTask ? editingTask.title : newTask.title}
@@ -93,9 +137,10 @@ function Todo() {
             </div>
 
             <div className="form-row">
-              <label>Duration (mins)</label>
+              <label>Focus Minutes *</label>
               <input
                 type="number"
+                min="1"
                 value={editingTask ? editingTask.duration : newTask.duration}
                 onChange={(e) =>
                   editingTask
@@ -106,9 +151,10 @@ function Todo() {
             </div>
 
             <div className="form-row">
-              <label>Due Date</label>
+              <label>Due Date *</label>
               <input
                 type="date"
+                min={todayStr}
                 value={editingTask ? editingTask.dueDate || "" : newTask.dueDate}
                 onChange={(e) =>
                   editingTask
@@ -135,6 +181,8 @@ function Todo() {
               </select>
             </div>
 
+            {error && <p style={{ color: "#ff5252", fontSize: "14px" }}>{error}</p>}
+
             <div className="modal-actions">
               <button className="cancel-btn" onClick={() => setShowModal(false)}>
                 Cancel
@@ -143,8 +191,17 @@ function Todo() {
               <button
                 className="save-btn"
                 onClick={() => {
+                  const taskToSave = editingTask || newTask;
+                  const err = validateTask(taskToSave);
+                  if (err) {
+                    setError(err);
+                    return;
+                  }
+
                   if (editingTask) {
-                    saveTasks(tasks.map(t => t.id === editingTask.id ? editingTask : t));
+                    saveTasks(tasks.map(t =>
+                      t.id === editingTask.id ? editingTask : t
+                    ));
                   } else {
                     saveTasks([...tasks, { ...newTask, id: Date.now() }]);
                     setNewTask({
@@ -155,6 +212,8 @@ function Todo() {
                       completed: false,
                     });
                   }
+
+                  setError("");
                   setShowModal(false);
                 }}
               >
@@ -195,11 +254,7 @@ function renderBox(q, title, tasks, saveTasks, setEditingTask, setShowModal) {
   };
 
   return (
-    <div
-      className="matrix-box"
-      onDragOver={(e) => e.preventDefault()}
-      onDrop={onDrop}
-    >
+    <div className="matrix-box" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <h2>{title}</h2>
 
       <ul className="matrix-list">
@@ -208,10 +263,7 @@ function renderBox(q, title, tasks, saveTasks, setEditingTask, setShowModal) {
         {filtered.map(task => (
           <li
             key={task.id}
-            className={`matrix-task 
-              ${task.completed ? "done" : ""} 
-              ${isOverdue(task) ? "overdue" : ""}
-            `}
+            className={`matrix-task ${task.completed ? "done" : ""} ${isOverdue(task) ? "overdue" : ""}`}
             draggable
             onDragStart={(e) => onDragStart(e, task)}
           >
@@ -226,20 +278,10 @@ function renderBox(q, title, tasks, saveTasks, setEditingTask, setShowModal) {
               </div>
 
               <div className="task-actions">
-                <span
-                  className="task-action edit"
-                  onClick={() => {
-                    setEditingTask(task);
-                    setShowModal(true);
-                  }}
-                >
+                <span className="task-action edit" onClick={() => { setEditingTask(task); setShowModal(true); }}>
                   Edit
                 </span>
-
-                <span
-                  className="task-action delete"
-                  onClick={() => deleteTask(task.id)}
-                >
+                <span className="task-action delete" onClick={() => deleteTask(task.id)}>
                   Delete
                 </span>
               </div>
