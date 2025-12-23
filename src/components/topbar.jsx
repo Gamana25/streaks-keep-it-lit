@@ -1,5 +1,18 @@
 // Updated: src/components/TopBar.jsx (Fixed for React Router and "user" storage)
 import { useState, useEffect } from "react";
+function getNameFromEmail(email) {
+  if (!email) return "User";
+
+  const beforeAt = email.split("@")[0];
+  const lettersOnly = beforeAt.replace(/[^a-zA-Z]/g, "");
+
+  if (!lettersOnly) return "User";
+
+  return (
+    lettersOnly.charAt(0).toUpperCase() +
+    lettersOnly.slice(1).toLowerCase()
+  );
+}
 
 function TopBar({ onLogout }) {  // Accept onLogout prop
   const [name, setName] = useState("user");
@@ -8,7 +21,7 @@ function TopBar({ onLogout }) {  // Accept onLogout prop
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
     setEmail(user.email || "user@email.com");
-    setName(user.email ? user.email.split("@")[0] : "user");  // Derive name from email
+    setName(getNameFromEmail(user.email));
   }, []);
 
   const handleLogoutClick = () => {

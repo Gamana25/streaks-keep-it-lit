@@ -1,73 +1,97 @@
-// Updated: src/pages/Login.jsx (Set derived userName after login)
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import "../css/styles-sign-up.css";
 
 export default function Login() {
-  const [form, setForm] = useState({ email: "", password: "" });
-  const [error, setError] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
   const navigate = useNavigate();
 
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    const stored = JSON.parse(localStorage.getItem("user"));
+    const savedUser = JSON.parse(localStorage.getItem("user"));
 
-    if (
-      !stored ||
-      stored.email !== form.email ||
-      stored.password !== form.password
-    ) {
-      setError("Invalid email or password");
+    if (!savedUser) {
+      setMessage("No account found. Please sign up.");
       return;
     }
 
-    // Set derived name and email (for TopBar compat)
-    const name = form.email.split("@")[0];
-    localStorage.setItem("userName", name);
-    localStorage.setItem("userEmail", form.email);
-
-    navigate("/dashboard");
+    if (
+      email === savedUser.email &&
+      password === savedUser.password
+    ) {
+      setMessage("Login successful!");
+      setTimeout(() => navigate("/dashboard"), 800);
+    } else {
+      setMessage("Invalid email or password");
+    }
   };
 
   return (
     <>
+      {/* Header */}
       <nav>
         <div className="con">
-          <div className="name">Streaks</div>
-        </div>
+          <div className="name">
+            <img className="icon-logo" src="/images/logo.png" alt="logo" />
+            <img className="title" src="/images/title.png" alt="title" />
+          </div>
 
-        <Link to="/signup">
-          <button className="login-button">Sign Up</button>
-        </Link>
+          <ul className="info">
+            <li>Get Started</li>
+            <li>Mobile Apps</li>
+            <li>Learn More</li>
+          </ul>
+        </div>
       </nav>
 
+      {/* Middle */}
       <div className="middle">
+        <div className="left-middle">
+          <p className="tag-line">
+            <span style={{ color: "#05c26a" }}>Welcome back!</span>
+            <br />
+            Log in to continue your journey.
+          </p>
+        </div>
+
         <div className="right-middle">
           <p className="sign-up">Log In</p>
 
           <form onSubmit={handleSubmit}>
             <input
               className="input-box"
+              type="email"
               placeholder="Email"
-              onChange={(e) =>
-                setForm({ ...form, email: e.target.value })
-              }
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
             />
 
             <input
               className="input-box"
               type="password"
               placeholder="Password"
-              onChange={(e) =>
-                setForm({ ...form, password: e.target.value })
-              }
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
             />
 
-            {error && <p className="message">{error}</p>}
-
-            <button className="continue">Log In</button>
+            <button type="submit" className="continue">
+              Log In
+            </button>
           </form>
+
+          {message && <p className="message">{message}</p>}
+
+          <p style={{ color: "white", marginTop: "10px" }}>
+            Don&apos;t have an account?{" "}
+            <Link to="/" style={{ color: "#05c26a" }}>
+              Sign up
+            </Link>
+          </p>
         </div>
       </div>
     </>

@@ -8,6 +8,19 @@ function formatDate(dateStr) {
     month: "short",
   });
 }
+function getNameFromEmail(email) {
+  if (!email) return "User";
+
+  const beforeAt = email.split("@")[0];          
+  const lettersOnly = beforeAt.replace(/[^a-zA-Z]/g, ""); 
+
+  if (!lettersOnly) return "User";
+
+  return (
+    lettersOnly.charAt(0).toUpperCase() +
+    lettersOnly.slice(1).toLowerCase()
+  );
+}
 
 function Dashboard() {
   const chartRef = useRef(null);
@@ -106,7 +119,8 @@ function Dashboard() {
 
     /* USERNAME */
     const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
-    setUsername(storedUser.email || "user");
+    setUsername(getNameFromEmail(storedUser.email));
+
 
     /* TODOS */
     const tasks = JSON.parse(localStorage.getItem("tasks")) || [];
