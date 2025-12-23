@@ -1,45 +1,31 @@
-import { useState } from "react";
-import Sidebar from "./components/sidebar";
-import TopBar from "./components/topbar";
+// Updated: src/App.jsx (Simplified: Single protected route rendering the container)
+import { Routes, Route, Navigate } from "react-router-dom";
 
-
-import Dashboard from "./pages/Dashboard";
-import Habits from "./pages/Habits";
-import Todo from "./pages/Todo";
-import Reminders from "./pages/Reminders";
-import Archive from "./pages/Archive";
+import Signup from "./pages/Signup";
+import Login from "./pages/Login";
+import ProtectedApp from "./components/ProtectedApp";  // New: Renders all sections
 
 function App() {
-  const [section, setSection] = useState(
-    localStorage.getItem("activeSection") || "dashboard"
-  );
-
-  const renderSection = () => {
-    switch (section) {
-      case "habits":
-        return <Habits />;
-      case "todo":
-        return <Todo />;
-      case "reminders":
-        return <Reminders />;
-      case "archive":
-        return <Archive />;
-      default:
-        return <Dashboard />;
-    }
-  };
+  const user = localStorage.getItem("user");
 
   return (
-    <div className="app-root">
-      <Sidebar section={section} setSection={setSection} />
+    <Routes>
+      {/* FIRST PAGE */}
+      <Route path="/" element={<Signup />} />
 
-      <div className="main-wrapper">
-        <TopBar />
-        <div id="main-content">
-          {renderSection()}
-        </div>
-      </div>
-    </div>
+      {/* AUTH */}
+      <Route path="/signup" element={<Signup />} />
+      <Route path="/login" element={<Login />} />
+
+      {/* PROTECTED: Single route for all sections */}
+      <Route
+        path="/dashboard"
+        element={user ? <ProtectedApp /> : <Navigate to="/login" />}
+      />
+
+      {/* FALLBACK */}
+      <Route path="*" element={<Navigate to="/" />} />
+    </Routes>
   );
 }
 

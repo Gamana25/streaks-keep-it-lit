@@ -1,6 +1,19 @@
 import { useEffect, useState } from "react";
 
 /* ================= HELPERS ================= */
+function addFocusMinutes(minutes) {
+  const today = new Date().toISOString().split("T")[0];
+  const data = JSON.parse(localStorage.getItem("focusHours")) || {};
+  data[today] = (data[today] || 0) + Number(minutes);
+  localStorage.setItem("focusHours", JSON.stringify(data));
+}
+
+function removeFocusMinutes(minutes) {
+  const today = new Date().toISOString().split("T")[0];
+  const data = JSON.parse(localStorage.getItem("focusHours")) || {};
+  data[today] = Math.max(0, (data[today] || 0) - Number(minutes));
+  localStorage.setItem("focusHours", JSON.stringify(data));
+}
 
 function formatDate(dateStr) {
   if (!dateStr) return "-";
@@ -55,6 +68,8 @@ function Todo() {
 
   /* ===== SEARCH + FILTER ===== */
   const visibleTasks = tasks
+    // FIX: Keep the task visible if it is currently in the "removing" animation state
+    .filter(t => !t.completed || t.removing)
     .filter(t =>
       t.title.toLowerCase().includes(search.toLowerCase())
     )
@@ -63,6 +78,7 @@ function Todo() {
       if (filter === "overdue") return isOverdue(t);
       return true;
     });
+
 
   /* ===== VALIDATION ===== */
   const validateTask = (task) => {
@@ -111,10 +127,10 @@ function Todo() {
       </div>
 
       <div className="matrix-grid">
-        {renderBox(1, "Urgent & Important", visibleTasks, saveTasks, setEditingTask, setShowModal)}
-        {renderBox(2, "Not Urgent & Important", visibleTasks, saveTasks, setEditingTask, setShowModal)}
-        {renderBox(3, "Urgent & Not Important", visibleTasks, saveTasks, setEditingTask, setShowModal)}
-        {renderBox(4, "Not Urgent & Not Important", visibleTasks, saveTasks, setEditingTask, setShowModal)}
+        {renderBox(1, "Urgent & Important", tasks, visibleTasks, saveTasks, setEditingTask, setShowModal)}
+        {renderBox(2, "Not Urgent & Important", tasks, visibleTasks, saveTasks, setEditingTask, setShowModal)}
+        {renderBox(3, "Urgent & Not Important", tasks, visibleTasks, saveTasks, setEditingTask, setShowModal)}
+        {renderBox(4, "Not Urgent & Not Important", tasks, visibleTasks, saveTasks, setEditingTask, setShowModal)}
       </div>
 
       {/* ===== MODAL ===== */}
@@ -229,17 +245,49 @@ function Todo() {
 
 /* ================= MATRIX BOX ================= */
 
-function renderBox(q, title, tasks, saveTasks, setEditingTask, setShowModal) {
-  const filtered = tasks.filter(t => t.quadrant === q);
+function renderBox(q, title, fullTasks, visibleTasks, saveTasks, setEditingTask, setShowModal) {
+  const filtered = visibleTasks.filter(t => t.quadrant === q);
 
   const toggleDone = (id) => {
-    saveTasks(tasks.map(t =>
-      t.id === id ? { ...t, completed: !t.completed } : t
-    ));
+    const currentTask = fullTasks.find(t => t.id === id);
+    if (!currentTask) return;
+  
+    const nowCompleted = !currentTask.completed;
+  
+    if (nowCompleted) {
+      // 1. Trigger Animation: set removing to true first
+      saveTasks(
+        fullTasks.map(t =>
+          t.id === id ? { ...t, removing: true } : t
+        )
+      );
+      
+      addFocusMinutes(currentTask.duration);
+      window.dispatchEvent(new Event("focusUpdated"));
+
+      // 2. Delay the actual "completion" filter so animation can play
+      setTimeout(() => {
+        saveTasks(
+          fullTasks.map(t =>
+            t.id === id ? { ...t, completed: true, removing: false } : t
+          )
+        );
+      }, 500); // Matches your CSS transition time
+
+    } else {
+      removeFocusMinutes(currentTask.duration);
+      saveTasks(
+        fullTasks.map(t =>
+          t.id === id ? { ...t, completed: false, removing: false } : t
+        )
+      );
+      window.dispatchEvent(new Event("focusUpdated"));
+    }
   };
+  
 
   const deleteTask = (id) => {
-    saveTasks(tasks.filter(t => t.id !== id));
+    saveTasks(fullTasks.filter(t => t.id !== id));
   };
 
   const onDragStart = (e, task) => {
@@ -248,7 +296,7 @@ function renderBox(q, title, tasks, saveTasks, setEditingTask, setShowModal) {
 
   const onDrop = (e) => {
     const taskId = Number(e.dataTransfer.getData("taskId"));
-    saveTasks(tasks.map(t =>
+    saveTasks(fullTasks.map(t =>
       t.id === taskId ? { ...t, quadrant: q } : t
     ));
   };
@@ -263,8 +311,8 @@ function renderBox(q, title, tasks, saveTasks, setEditingTask, setShowModal) {
         {filtered.map(task => (
           <li
             key={task.id}
-            className={`matrix-task ${task.completed ? "done" : ""} ${isOverdue(task) ? "overdue" : ""}`}
-            draggable
+            className={`matrix-task ${task.completed ? "done" : ""} ${task.removing ? "removing" : ""} ${isOverdue(task) ? "overdue" : ""}`}
+            draggable={!task.removing}
             onDragStart={(e) => onDragStart(e, task)}
           >
             <div className="matrix-task-row">
@@ -291,7 +339,7 @@ function renderBox(q, title, tasks, saveTasks, setEditingTask, setShowModal) {
               <span className={`due-date ${isOverdue(task) ? "overdue" : ""}`}>
                 📅 {formatDate(task.dueDate)}
               </span>
-              <span className="duration">⏱ {task.duration} min</span>
+              <span className="duration">⏳ {task.duration} min</span>
             </div>
           </li>
         ))}

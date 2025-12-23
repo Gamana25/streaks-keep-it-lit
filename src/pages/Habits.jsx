@@ -6,6 +6,7 @@ function Habits() {
   const [showHabitModal, setShowHabitModal] = useState(false);
   const [newHabitName, setNewHabitName] = useState("");
   const [editingHabitId, setEditingHabitId] = useState(null);
+  const [removingHabitId, setRemovingHabitId] = useState(null);
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -39,82 +40,77 @@ function Habits() {
     saveHabits(updated);
   };
 
-  /* ADD FROM MODAL */
+  /* ADD / EDIT */
   const handleSaveHabit = () => {
     if (!newHabitName.trim()) return;
-  
-    // EDIT MODE
+
     if (editingHabitId) {
-      const updated = habits.map((h) =>
-        h.id === editingHabitId
-          ? { ...h, name: newHabitName.trim() }
-          : h
+      saveHabits(
+        habits.map((h) =>
+          h.id === editingHabitId
+            ? { ...h, name: newHabitName.trim() }
+            : h
+        )
       );
-  
-      saveHabits(updated);
+    } else {
+      saveHabits([
+        ...habits,
+        {
+          id: Date.now(),
+          name: newHabitName.trim(),
+          completedDates: [],
+          deleted: false,
+        },
+      ]);
     }
-    // ADD MODE
-    else {
-      const newHabit = {
-        id: Date.now(),
-        name: newHabitName.trim(),
-        completedDates: [],
-      };
-  
-      saveHabits([...habits, newHabit]);
-    }
-  
-    // RESET MODAL STATE
+
     setNewHabitName("");
     setEditingHabitId(null);
     setShowHabitModal(false);
   };
-  
 
   /* RESET */
   const resetToday = () => {
-    const updated = habits.map((h) => ({
-      ...h,
-      completedDates: (h.completedDates || []).filter((d) => d !== today),
-    }));
-    saveHabits(updated);
-  };
-  const deleteHabit = (id) => {
-    const updated = habits.filter((h) => h.id !== id);
-    saveHabits(updated);
-  };
-  
-  const editHabit = (id) => {
-    const habit = habits.find((h) => h.id === id);
-    if (!habit) return;
-  
-    const newName = prompt("Edit habit name", habit.name);
-    if (!newName || !newName.trim()) return;
-  
-    const updated = habits.map((h) =>
-      h.id === id ? { ...h, name: newName.trim() } : h
+    saveHabits(
+      habits.map((h) => ({
+        ...h,
+        completedDates: (h.completedDates || []).filter((d) => d !== today),
+      }))
     );
-  
-    saveHabits(updated);
   };
-  const filteredHabits = habits.filter((h) =>
-    h.name.toLowerCase().includes(search.toLowerCase())
+
+  /* SOFT DELETE WITH ANIMATION */
+  const deleteHabit = (id) => {
+    setRemovingHabitId(id);
+
+    setTimeout(() => {
+      saveHabits(
+        habits.map((h) =>
+          h.id === id ? { ...h, deleted: true } : h
+        )
+      );
+      setRemovingHabitId(null);
+    }, 250);
+  };
+
+  const filteredHabits = habits.filter(
+    (h) =>
+      !h.deleted &&
+      h.name.toLowerCase().includes(search.toLowerCase())
   );
+
   const undoneHabits = filteredHabits.filter(
     (h) => !h.completedDates?.includes(today)
   );
-  
+
   const doneHabits = filteredHabits.filter(
     (h) => h.completedDates?.includes(today)
   );
-  
-  
+
   const orderedHabits = [...undoneHabits, ...doneHabits];
-  
 
   return (
     <>
-      {/* ================= HABITS CARD ================= */}
       <div className="habits-card">
         {/* TOP */}
         <div className="habits-top">
@@ -136,7 +132,6 @@ function Habits() {
             <span className="new-btn" onClick={() => setShowHabitModal(true)}>
               + New
             </span>
-            <span className="more-btn">More</span>
           </div>
         </div>
 
@@ -146,7 +141,12 @@ function Habits() {
             const doneToday = h.completedDates?.includes(today);
 
             return (
-              <li key={h.id} className="habit-item">
+              <li
+                key={h.id}
+                className={`habit-item ${
+                  removingHabitId === h.id ? "fade-out" : "fade-in"
+                }`}
+              >
                 <div className="habit-left">
                   <div
                     className={`checkbox ${doneToday ? "checked" : ""}`}
@@ -159,6 +159,7 @@ function Habits() {
 
                 <div className="habit-right">
                   <span className="streak">{h.completedDates.length}</span>
+
                   <span
                     className="edit"
                     onClick={() => {
@@ -169,7 +170,6 @@ function Habits() {
                   >
                     Edit
                   </span>
-
 
                   <span
                     className="delete"
@@ -198,44 +198,22 @@ function Habits() {
         </div>
       </div>
 
-      {/* ================= ADD HABIT MODAL ================= */}
+      {/* MODAL */}
       {showHabitModal && (
         <div
           className="modal-overlay"
           onClick={() => setShowHabitModal(false)}
         >
-          <div
-            className="modal"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2>Add Habit</h2>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2>{editingHabitId ? "Edit Habit" : "Add Habit"}</h2>
 
             <div className="form-row">
               <label>Habit Name</label>
               <input
                 type="text"
-                placeholder="e.g. Read 30 mins"
                 value={newHabitName}
                 onChange={(e) => setNewHabitName(e.target.value)}
               />
-            </div>
-
-            <div className="form-row">
-              <label>Frequency</label>
-              <div className="radio-row">
-                <label>
-                  <input type="radio" name="freq" defaultChecked /> Daily
-                </label>
-                <label>
-                  <input type="radio" name="freq" /> Weekdays
-                </label>
-                <label>
-                  <input type="radio" name="freq" /> Weekends
-                </label>
-                <label>
-                  <input type="radio" name="freq" /> Custom
-                </label>
-              </div>
             </div>
 
             <div className="modal-actions">
@@ -245,19 +223,14 @@ function Habits() {
               >
                 Cancel
               </button>
-              <button
-                className="btn"
-                onClick={handleSaveHabit}
-              >
+              <button className="btn" onClick={handleSaveHabit}>
                 Save
               </button>
             </div>
           </div>
         </div>
-        
       )}
     </>
-    
   );
 }
 

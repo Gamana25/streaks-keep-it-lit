@@ -1,63 +1,34 @@
 import { useEffect, useRef, useState } from "react";
 import Chart from "chart.js/auto";
 
+function formatDate(dateStr) {
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
 function Dashboard() {
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
 
   const [dateText, setDateText] = useState("");
   const [greeting, setGreeting] = useState("");
+  const [username, setUsername] = useState("user");
 
   const [todoCount, setTodoCount] = useState(0);
   const [habitTotal, setHabitTotal] = useState(0);
   const [habitCompleted, setHabitCompleted] = useState(0);
   const [upcomingReminders, setUpcomingReminders] = useState(0);
   const [habitStreaks, setHabitStreaks] = useState([]);
+  const [reminderList, setReminderList] = useState([]);
 
-  useEffect(() => {
-    const now = new Date();
+  /* ================= CHART RENDER ================= */
 
-    setDateText(
-      now.toLocaleDateString("en-US", {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-      })
-    );
+  const renderChart = () => {
+    if (!chartRef.current) return;
 
-    const hour = now.getHours();
-    setGreeting(
-      hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
-    );
-
-    // TODOS
-    const tasks = JSON.parse(localStorage.getItem("tasks")) || [];
-    setTodoCount(tasks.length);
-
-    // HABITS
-    const habits = JSON.parse(localStorage.getItem("habits")) || [];
-    setHabitTotal(habits.length);
-
-    const today = new Date().toISOString().split("T")[0];
-    setHabitCompleted(
-      habits.filter((h) => h.completedDates?.includes(today)).length
-    );
-
-    // REMINDERS
-    const reminders = JSON.parse(localStorage.getItem("reminders")) || [];
-    setUpcomingReminders(
-      reminders.filter((r) => r.date && new Date(r.date) >= new Date()).length
-    );
-
-    // HABIT STREAKS
-    setHabitStreaks(
-      habits.map((h) => ({
-        name: h.name,
-        streak: h.completedDates?.length || 0,
-      }))
-    );
-
-    // FOCUS HOURS
     const focusData = JSON.parse(localStorage.getItem("focusHours")) || {};
     const labels = [];
     const values = [];
@@ -76,38 +47,117 @@ function Dashboard() {
     }
 
     chartInstance.current = new Chart(chartRef.current, {
-      type: "bar",
+      type: "line",
       data: {
         labels,
         datasets: [
           {
-            label: "Focus Hours",
             data: values,
-            backgroundColor: "#05c26a",
-            borderRadius: 6,
+            borderColor: "#05c26a",
+            backgroundColor: "rgba(5, 194, 106, 0.2)",
+            tension: 0.4,
+            fill: true,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            pointBackgroundColor: "#05c26a",
           },
         ],
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: { legend: { display: false } },
-        scales: {
-          x: { grid: { display: false }, border: { display: false } },
-          y: { grid: { display: false }, border: { display: false }, ticks: { display: false } },
+        plugins: {
+          legend: { display: false },
         },
-      }
-      
-      
+        scales: {
+          x: {
+            grid: { display: false },
+            border: { display: false },
+          },
+          y: {
+            beginAtZero: true,
+            ticks: {
+              callback: (v) => `${v}m`,
+            },
+          },
+        },
+      },
     });
+  };
+
+  /* ================= EFFECT ================= */
+
+  useEffect(() => {
+    const now = new Date();
+
+    /* DATE + GREETING */
+    setDateText(
+      now.toLocaleDateString("en-US", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      })
+    );
+
+    const hour = now.getHours();
+    setGreeting(
+      hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening"
+    );
+
+    /* USERNAME */
+    const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+    setUsername(storedUser.email || "user");
+
+    /* TODOS */
+    const tasks = JSON.parse(localStorage.getItem("tasks")) || [];
+    setTodoCount(tasks.filter(t => !t.completed).length);
+
+    /* HABITS */
+    const habits = JSON.parse(localStorage.getItem("habits")) || [];
+    setHabitTotal(habits.length);
+
+    const today = new Date().toISOString().split("T")[0];
+    setHabitCompleted(
+      habits.filter(h => h.completedDates?.includes(today)).length
+    );
+
+    /* REMINDERS */
+    const reminders = JSON.parse(localStorage.getItem("reminders")) || [];
+    const upcoming = reminders.filter(r => r.date);
+    setUpcomingReminders(upcoming.length);
+    setReminderList(upcoming.slice(0, 5));
+
+    /* HABIT STREAKS */
+    setHabitStreaks(
+      habits.map(h => ({
+        name: h.name,
+        streak: h.completedDates?.length || 0,
+      }))
+    );
+
+    /* INITIAL CHART */
+    renderChart();
+
+    /* LISTEN FOR TASK COMPLETE / UNDO */
+    window.addEventListener("focusUpdated", renderChart);
+
+    return () => {
+      window.removeEventListener("focusUpdated", renderChart);
+      if (chartInstance.current) {
+        chartInstance.current.destroy();
+        chartInstance.current = null;
+      }
+    };
   }, []);
+
+  /* ================= JSX ================= */
 
   return (
     <section id="dashboard-section">
       <div className="date-div">
         <p className="date-sub">{dateText}</p>
         <p className="greet-apple">
-          {greeting}, <span>@user</span>
+          {greeting}, <span>{username}</span>
         </p>
 
         <div className="middle-part">
@@ -130,39 +180,35 @@ function Dashboard() {
         </div>
 
         <div className="charts-grid">
-  {/* Focus Hours */}
-  <div className="chart-container">
-    <p className="title-middle">Focus Hours (This Week)</p>
-    <canvas ref={chartRef} />
-  </div>
+          <div className="chart-container">
+            <p className="title-middle">Focus Minutes (Last 7 Days)</p>
+            <canvas ref={chartRef} />
+          </div>
 
-  {/* Habits Overview */}
-  <div className="chart-container">
-    <p className="title-middle">Habits Overview</p>
+          <div className="chart-container">
+            <p className="title-middle">Habits Overview</p>
+            <ul className="habit-streak-list">
+              {habitStreaks.map((h, i) => (
+                <li key={i} className="habit-streak-item">
+                  <span>{h.name}</span>
+                  <span>🔥 {h.streak}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
 
-    <ul className="habit-streak-list">
-      {habitStreaks.length === 0 && (
-        <li style={{ color: "#A6ADBA" }}>No habits yet</li>
-      )}
-
-      {habitStreaks.map((h, i) => (
-        <li key={i} className="habit-streak-item">
-          <span className="habit-streak-name">{h.name}</span>
-          <span className="streak-badge">🔥 {h.streak}</span>
-        </li>
-      ))}
-    </ul>
-  </div>
-
-  {/* Reminders Mini */}
-  <div className="chart-container reminders-mini">
-    <p className="title-middle">Reminders</p>
-    <p className="middle-p">
-      Upcoming reminders: <span>{upcomingReminders}</span>
-    </p>
-  </div>
-</div>
-
+          <div className="chart-container reminders-mini">
+            <p className="title-middle">Upcoming Reminders</p>
+            <ul className="reminder-mini-list">
+              {reminderList.map(r => (
+                <li key={r.id} className="reminder-mini-item">
+                  <p>{r.title}</p>
+                  <span>📅 {formatDate(r.date)}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
       </div>
     </section>
   );

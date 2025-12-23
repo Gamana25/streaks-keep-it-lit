@@ -1,12 +1,21 @@
-function TopBar() {
-  const name = localStorage.getItem("userName") || "user";
-  const email = localStorage.getItem("userEmail") || "user@email.com";
+// Updated: src/components/TopBar.jsx (Fixed for React Router and "user" storage)
+import { useState, useEffect } from "react";
 
-  const handleLogout = () => {
-    localStorage.removeItem("userName");
-    localStorage.removeItem("userEmail");
+function TopBar({ onLogout }) {  // Accept onLogout prop
+  const [name, setName] = useState("user");
+  const [email, setEmail] = useState("user@email.com");
+
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    setEmail(user.email || "user@email.com");
+    setName(user.email ? user.email.split("@")[0] : "user");  // Derive name from email
+  }, []);
+
+  const handleLogoutClick = () => {
+    localStorage.removeItem("userName");  // Backward compat, but not used
+    localStorage.removeItem("userEmail");  // Backward compat, but not used
     localStorage.removeItem("activeSection");
-    window.location.href = "/login.html"; // same as your old app
+    if (onLogout) onLogout();  // Use prop for navigation
   };
 
   return (
@@ -24,7 +33,7 @@ function TopBar() {
             alt="profile"
           />
 
-          <div className="info logout-wrapper" onClick={handleLogout}>
+          <div className="info logout-wrapper" onClick={handleLogoutClick}>
             <img
               className="logo-logout"
               src="/images/logout.png"
